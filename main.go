@@ -8,13 +8,14 @@ import (
 
 func main() {
 	router := gin.Default()
+	router.Use(Logger())
+	router.Use(gin.Recovery())
 
 	router.GET("/", func(c *gin.Context) {
 		data := map[string]interface{}{
 			"message": "Hello, JSON!",
 		}
 
-		// Use the JSON method to send the map as a JSON response
 		c.JSON(http.StatusOK, data)
 	})
 
