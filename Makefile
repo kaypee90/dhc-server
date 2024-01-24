@@ -3,19 +3,18 @@ GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
+GORUN=$(GOCMD) run
 BINARY_NAME=dhc-server
 BINARY_UNIX=$(BINARY_NAME)_unix
-OUTPUT_HTML_NAME=Preview.html
 
 run:
-	go run main.go logging.go handlers.go
+	$(GORUN) main.go logging.go handlers.go
 build: 
 	$(GOBUILD) -o $(BINARY_NAME) -v
 test: 
 	$(GOTEST) -v ./...
 clean: 
 	$(GOCLEAN)
-	rm -f $(OUTPUT_HTML_NAME)
 	rm -f $(BINARY_NAME)
 	rm -f $(BINARY_UNIX)
 build-run:
