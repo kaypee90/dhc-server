@@ -1,23 +1,24 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 )
 
-func main() {
+func setupRouter() *gin.Engine {
 	router := gin.Default()
 	router.Use(Logger())
 	router.Use(gin.Recovery())
 
-	router.GET("/", func(c *gin.Context) {
-		data := map[string]interface{}{
-			"message": "Hello, JSON!",
-		}
+	v1Handler := VersionOneHandler{}
 
-		c.JSON(http.StatusOK, data)
-	})
+	v1 := router.Group("/v1")
+	{
+		v1.GET("/", v1Handler.HealhCheck)
+	}
+	return router
+}
 
+func main() {
+	router := setupRouter()
 	router.Run(":8080")
 }
