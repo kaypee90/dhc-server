@@ -8,7 +8,7 @@ BINARY_NAME=dhc-server
 BINARY_UNIX=$(BINARY_NAME)_unix
 
 run:
-	$(GORUN) main.go logging.go handlers.go
+	$(GORUN) $$(ls -1 *.go | grep -v _test.go)
 build: 
 	$(GOBUILD) -o $(BINARY_NAME) -v
 test: 
