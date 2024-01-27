@@ -32,3 +32,9 @@ func (h *VersionOneHandler) CreateMetric(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, data)
 }
+
+func (h *VersionOneHandler) GetMetrics(c *gin.Context) []Metric {
+	var metrics []Metric
+	context.Database.Find(&metrics)
+	return metrics
+}

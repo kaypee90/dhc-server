@@ -5,9 +5,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+)
+
+const (
+	HTTP_GET  = "GET"
+	HTTP_POST = "POST"
 )
 
 func TestPingRoute(t *testing.T) {
@@ -35,8 +41,7 @@ func TestCreateMetric(t *testing.T) {
 	assert.NoError(t, err)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/v1/metrics", bytes.NewBuffer(jsonPayload))
-	assert.NoError(t, err)
+	req, _ := http.NewRequest(HTTP_POST, "/v1/metrics", bytes.NewBuffer(jsonPayload))
 
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
@@ -48,4 +53,28 @@ func TestCreateMetric(t *testing.T) {
 
 	assert.Equal(t, metric.Label, "db-check")
 	assert.Equal(t, metric.Value, 1)
+}
+
+func TestGetMetrics(t *testing.T) {
+	metric := Metric{
+		Label:       "celery-check",
+		Value:       1,
+		Description: "failing",
+		Source:      "celery-check-source",
+	}
+	context.Database.Create(&metric)
+
+	router := setupRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(HTTP_GET, "/v1/metrics", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	expected := "instrumentation_library_metrics"
+	if !strings.Contains(w.Body.String(), expected) {
+		t.Errorf("Handler returned unexpected body: got %v want %v",
+			w.Body.String(), expected)
+	}
 }
