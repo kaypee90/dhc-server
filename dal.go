@@ -18,16 +18,27 @@ type DatabaseContext struct {
 	Database     *gorm.DB
 }
 
+type DataPoint map[string]interface{}
+
+type InstrumentationMetric struct {
+	Timestamp  string      `json:"timestamp"`
+	DataPoints []DataPoint `json:"data_points"`
+}
+
 type InstrumentationLibrary struct {
-	Name    string `json:"instrumentation_library"`
-	Metrics string `json:"metrics"`
+	Name    string                  `json:"instrumentation_library"`
+	Metrics []InstrumentationMetric `json:"metrics"`
 }
 
 type Instrument struct {
-	Name           string                   `json:"label"`
+	Name           string                   `json:"name"`
 	Description    string                   `json:"description"`
 	Unit           string                   `json:"unit"`
 	LibraryMetrics []InstrumentationLibrary `json:"instrumentation_library_metrics"`
+}
+
+type GetMetricsResponse struct {
+	Metrics []Instrument `json:"metrics"`
 }
 
 func (context *DatabaseContext) initDB() {
@@ -50,7 +61,7 @@ func (context *DatabaseContext) createNewMetric(metric Metric) Metric {
 	return metric
 }
 
-func (context *DatabaseContext) getAllMetrics(metric Metric) []Metric {
+func (context *DatabaseContext) getAllMetrics() []Metric {
 	var metrics []Metric
 	context.Database.Find(&metrics)
 	return metrics

@@ -77,4 +77,16 @@ func TestGetMetrics(t *testing.T) {
 		t.Errorf("Handler returned unexpected body: got %v want %v",
 			w.Body.String(), expected)
 	}
+
+	expectedName := "\"name\":\"celery-check\""
+	if !strings.Contains(w.Body.String(), expectedName) {
+		t.Errorf("Handler returned unexpected body: got %v want %v",
+			w.Body.String(), expectedName)
+	}
+
+	expectedSource := "\"source\":\"celery-check-source\""
+	if !strings.Contains(w.Body.String(), expectedSource) {
+		t.Errorf("Handler returned unexpected body: got %v want %v",
+			w.Body.String(), expectedSource)
+	}
 }
