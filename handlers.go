@@ -95,3 +95,8 @@ func (h *VersionOneHandler) GetMetrics(c *gin.Context) {
 
 	c.JSON(http.StatusOK, data)
 }
+
+func (h *VersionOneHandler) GetMetricsSummary(c *gin.Context) {
+	data := context.getMetricsSummary()
+	c.JSON(http.StatusOK, data)
+}

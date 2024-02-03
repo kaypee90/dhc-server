@@ -90,3 +90,27 @@ func TestGetMetrics(t *testing.T) {
 			w.Body.String(), expectedSource)
 	}
 }
+
+func TestGetMetricsSummary(t *testing.T) {
+	metric := Metric{
+		Label:       "celery-check",
+		Value:       1,
+		Description: "failing",
+		Source:      "celery-check-source",
+	}
+	context.Database.Create(&metric)
+
+	router := setupRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(HTTP_GET, "/v1/metrics/summary", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	expected := "\"Label\":\"celery-check\",\"Value\":1,\"Count\":"
+	if !strings.Contains(w.Body.String(), expected) {
+		t.Errorf("Handler returned unexpected body: got %v want %v",
+			w.Body.String(), expected)
+	}
+}

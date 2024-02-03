@@ -19,6 +19,7 @@ func setupRouter() *gin.Engine {
 		v1.GET("/", v1Handler.HealthCheck)
 		v1.POST("/metrics", v1Handler.CreateMetric)
 		v1.GET("/metrics", v1Handler.GetMetrics)
+		v1.GET("/metrics/summary", v1Handler.GetMetricsSummary)
 	}
 	return router
 }

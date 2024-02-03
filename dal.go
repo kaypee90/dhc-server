@@ -37,6 +37,13 @@ type Instrument struct {
 	LibraryMetrics []InstrumentationLibrary `json:"instrumentation_library_metrics"`
 }
 
+type MetricSummary struct {
+	Label  string
+	Value  int
+	Count  int
+	Source string
+}
+
 type GetMetricsResponse struct {
 	Metrics []Instrument `json:"metrics"`
 }
@@ -65,4 +72,15 @@ func (context *DatabaseContext) getAllMetrics() []Metric {
 	var metrics []Metric
 	context.Database.Find(&metrics)
 	return metrics
+}
+
+func (context *DatabaseContext) getMetricsSummary() []MetricSummary {
+	var result []MetricSummary
+
+	context.Database.Table("metrics").
+		Select("Label, Value, count(*) as count").
+		Group("Label, Value").
+		Scan(&result)
+
+	return result
 }
