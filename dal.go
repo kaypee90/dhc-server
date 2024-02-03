@@ -38,10 +38,9 @@ type Instrument struct {
 }
 
 type MetricSummary struct {
-	Label  string
-	Value  int
-	Count  int
-	Source string
+	Label string
+	Value int
+	Count int
 }
 
 type GetMetricsResponse struct {
