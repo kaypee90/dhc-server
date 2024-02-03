@@ -108,7 +108,7 @@ func TestGetMetricsSummary(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	expected := "\"Label\":\"celery-check\",\"Value\":1,\"Count\":"
+	expected := "\"label\":\"celery-check\",\"value\":1,\"count\":"
 	if !strings.Contains(w.Body.String(), expected) {
 		t.Errorf("Handler returned unexpected body: got %v want %v",
 			w.Body.String(), expected)

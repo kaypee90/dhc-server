@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -8,6 +9,7 @@ var context = DatabaseContext{DatabaseName: "dhc.db"}
 
 func setupRouter() *gin.Engine {
 	router := gin.Default()
+	router.Use(cors.Default())
 	router.Use(Logger())
 	router.Use(gin.Recovery())
 	context.initDB()

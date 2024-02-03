@@ -38,9 +38,13 @@ type Instrument struct {
 }
 
 type MetricSummary struct {
-	Label string
-	Value int
-	Count int
+	Label string `json:"label"`
+	Value int    `json:"value"`
+	Count int    `json:"count"`
+}
+
+type MetricSummaryResponse struct {
+	Data []MetricSummary `json:"data"`
 }
 
 type GetMetricsResponse struct {
@@ -73,7 +77,7 @@ func (context *DatabaseContext) getAllMetrics() []Metric {
 	return metrics
 }
 
-func (context *DatabaseContext) getMetricsSummary() []MetricSummary {
+func (context *DatabaseContext) getMetricsSummary() MetricSummaryResponse {
 	var result []MetricSummary
 
 	context.Database.Table("metrics").
@@ -81,5 +85,5 @@ func (context *DatabaseContext) getMetricsSummary() []MetricSummary {
 		Group("Label, Value").
 		Scan(&result)
 
-	return result
+	return MetricSummaryResponse{Data: result}
 }
