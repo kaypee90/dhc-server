@@ -18,6 +18,10 @@ The Django Health Check Monitoring Server is a Go application designed to consum
 
 3. **Access Formatted Data**: Access the formatted health check data via the exposed RESTful API endpoints.
 
+## Local Development Server
+- Start the server using the command `air -c .air.toml`
+- Access the server via `http://localhost:8080/v1/`
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests on [GitHub](https://github.com/example/django-health-check-monitoring-server).
