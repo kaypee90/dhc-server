@@ -3,14 +3,16 @@ package main
 import (
 	"net/http"
 
+	l "dhc-server/logging"
+
 	"github.com/gin-gonic/gin"
 )
 
 type VersionOneHandler struct {
-	logger *Logger
+	logger *l.Logger
 }
 
-func (h *VersionOneHandler) ConfigureLogger(logger *Logger) {
+func (h *VersionOneHandler) ConfigureLogger(logger *l.Logger) {
 	// Set the logger
 	h.logger = logger
 }
@@ -48,13 +50,13 @@ func (h *VersionOneHandler) GetMetrics(c *gin.Context) {
 		if _, exists := groupedMetrics[dbMetric.Source]; exists {
 			groupedMetrics[dbMetric.Source] = append(groupedMetrics[dbMetric.Source], dbMetric)
 		} else {
-			h.logger.Info("Key doesn't exist in the grouped metrics, adding it", LogArg{key: "source", value: dbMetric.Source})
+			h.logger.Info("Key doesn't exist in the grouped metrics, adding it", l.LogArg{Key: "source", Value: dbMetric.Source})
 			groupedMetrics[dbMetric.Source] = []Metric{dbMetric}
 		}
 	}
 
 	for key, value := range groupedMetrics {
-		h.logger.Info("Process grouped metric", LogArg{key: "source", value: key})
+		h.logger.Info("Process grouped metric", l.LogArg{Key: "source", Value: key})
 		var metrics []InstrumentationMetric
 		libraryMetric := InstrumentationLibrary{
 			Name:    key,
@@ -81,7 +83,7 @@ func (h *VersionOneHandler) GetMetrics(c *gin.Context) {
 			})
 		}
 
-		h.logger.Info("Appending library metric", LogArg{key: "source", value: libraryMetric.Name})
+		h.logger.Info("Appending library metric", l.LogArg{Key: "source", Value: libraryMetric.Name})
 		libraryMetrics = append(libraryMetrics, libraryMetric)
 	}
 
