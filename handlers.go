@@ -1,17 +1,24 @@
 package main
 
 import (
-	"log"
 	"net/http"
+
+	l "dhc-server/logging"
 
 	"github.com/gin-gonic/gin"
 )
 
 type VersionOneHandler struct {
+	logger *l.Logger
+}
+
+func (h *VersionOneHandler) ConfigureLogger(logger *l.Logger) {
+	// Set the logger
+	h.logger = logger
 }
 
 func (h *VersionOneHandler) HealthCheck(c *gin.Context) {
-	data := map[string]interface{}{
+	data := map[string]string{
 		"message": "Healthy",
 	}
 
@@ -23,7 +30,7 @@ func (h *VersionOneHandler) CreateMetric(c *gin.Context) {
 
 	// Bind the request body to the Metric struct
 	if err := c.ShouldBindJSON(&newMetric); err != nil {
-		log.Println(err.Error())
+		h.logger.Info(err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -43,13 +50,13 @@ func (h *VersionOneHandler) GetMetrics(c *gin.Context) {
 		if _, exists := groupedMetrics[dbMetric.Source]; exists {
 			groupedMetrics[dbMetric.Source] = append(groupedMetrics[dbMetric.Source], dbMetric)
 		} else {
-			log.Printf("Key '%s' doesn't exist in the grouped metrics, adding it\n", dbMetric.Source)
+			h.logger.Info("Key doesn't exist in the grouped metrics, adding it", l.LogArg{Key: "source", Value: dbMetric.Source})
 			groupedMetrics[dbMetric.Source] = []Metric{dbMetric}
 		}
 	}
 
 	for key, value := range groupedMetrics {
-		log.Printf("Process grouped metric key: %s", key)
+		h.logger.Info("Process grouped metric", l.LogArg{Key: "source", Value: key})
 		var metrics []InstrumentationMetric
 		libraryMetric := InstrumentationLibrary{
 			Name:    key,
@@ -76,7 +83,7 @@ func (h *VersionOneHandler) GetMetrics(c *gin.Context) {
 			})
 		}
 
-		log.Printf("Append library metric with name: %s", libraryMetric.Name)
+		h.logger.Info("Appending library metric", l.LogArg{Key: "source", Value: libraryMetric.Name})
 		libraryMetrics = append(libraryMetrics, libraryMetric)
 	}
 
