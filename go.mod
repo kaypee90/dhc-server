@@ -1,6 +1,7 @@
 module dhc-server
 
-go 1.21.1
+go 1.23.0
+
 toolchain go1.24.1
 
 require (
@@ -9,7 +10,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 	gorm.io/driver/sqlite v1.5.7
-	gorm.io/gorm v1.26.0
+	gorm.io/gorm v1.26.1
 )
 
 require (
