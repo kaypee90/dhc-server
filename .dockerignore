@@ -1,0 +1,11 @@
+# Keep local databases, secrets and build output out of the image.
+*.db
+*.db-*
+.env
+.env.*
+tmp/
+dhc-server
+dhc-server_unix
+.git/
+.github/
+examples/

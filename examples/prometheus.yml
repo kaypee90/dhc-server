@@ -1,0 +1,12 @@
+# Prometheus scrape config for dhc-server.
+# Works the same for Grafana Alloy / Grafana Agent "prometheus.scrape" blocks.
+scrape_configs:
+  - job_name: dhc-server
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["dhc-server:8080"]
+    authorization:
+      type: Bearer
+      # A DHC_READ_API_KEYS value. Prefer credentials_file in production.
+      credentials_file: /etc/prometheus/dhc-read-key
+    # scheme: https   # when DHC_TLS_CERT_FILE / DHC_TLS_KEY_FILE are set

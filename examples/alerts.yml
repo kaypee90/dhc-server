@@ -1,0 +1,24 @@
+# Example Prometheus alerting rules.
+# The meaning of "value" comes from the Django library; adjust the
+# condition below if a non-zero value means "healthy" in your setup.
+#
+# Note: when DHC_RETENTION_PERIOD purges every report of a dead check, its
+# series disappears and HealthCheckStale resolves by itself. Use a retention
+# period much longer than the stale threshold.
+groups:
+  - name: dhc-server
+    rules:
+      - alert: HealthCheckFailing
+        expr: dhc_health_check_status != 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.source }}: {{ $labels.check }} is reporting {{ $value }}"
+      - alert: HealthCheckStale
+        expr: time() - dhc_health_check_last_report_time_seconds > 900
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.source }}: {{ $labels.check }} has not reported for over 15 minutes"

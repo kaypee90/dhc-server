@@ -1,40 +1,47 @@
 package main
 
 import (
-	"gorm.io/driver/sqlite"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
+// ErrSeriesLimit is returned when a report would create a new
+// (source, check) series after the configured limit was reached.
+var ErrSeriesLimit = errors.New("series limit reached")
+
+// Metric is one health check report as stored in the database.
 type Metric struct {
 	gorm.Model
-	Label       string `json:"label" form:"label" binding:"required"`
-	Value       int    `json:"value" form:"value" binding:"required"`
-	Description string `json:"description" form:"description" binding:"required"`
-	Source      string `json:"source" form:"source" binding:"required"`
+	Label       string `json:"label" gorm:"index:idx_metrics_series,priority:2"`
+	Value       int    `json:"value"`
+	Description string `json:"description"`
+	Source      string `json:"source" gorm:"index:idx_metrics_series,priority:1"`
 }
 
-type DatabaseContext struct {
-	DatabaseName string
-	Database     *gorm.DB
+// MetricInput is the request body for POST /v1/metrics. It is kept apart from
+// the database model so clients cannot set ID or timestamps. Value is a
+// pointer so that 0 counts as present: a plain int with binding:"required"
+// rejects 0, which is a valid health check value.
+type MetricInput struct {
+	Label       string `json:"label" binding:"required,max=128,safetext"`
+	Value       *int   `json:"value" binding:"required"`
+	Description string `json:"description" binding:"required,max=1024,safetext"`
+	Source      string `json:"source" binding:"required,max=128,safetext"`
 }
 
-type DataPoint map[string]interface{}
-
-type InstrumentationMetric struct {
-	Timestamp  string      `json:"timestamp"`
-	DataPoints []DataPoint `json:"data_points"`
-}
-
-type InstrumentationLibrary struct {
-	Name    string                  `json:"instrumentation_library"`
-	Metrics []InstrumentationMetric `json:"metrics"`
-}
-
-type Instrument struct {
-	Name           string                   `json:"name"`
-	Description    string                   `json:"description"`
-	Unit           string                   `json:"unit"`
-	LibraryMetrics []InstrumentationLibrary `json:"instrumentation_library_metrics"`
+// SeriesStatus is the latest report for one (source, check) pair.
+type SeriesStatus struct {
+	Source     string    `json:"source"`
+	Label      string    `json:"label"`
+	Value      int       `json:"value"`
+	ReportedAt time.Time `json:"reported_at"`
 }
 
 type MetricSummary struct {
@@ -43,47 +50,137 @@ type MetricSummary struct {
 	Count int    `json:"count"`
 }
 
-type MetricSummaryResponse struct {
-	Data []MetricSummary `json:"data"`
+// Store wraps the database.
+type Store struct {
+	db *gorm.DB
 }
 
-type GetMetricsResponse struct {
-	Metrics []Instrument `json:"metrics"`
-}
-
-func (context *DatabaseContext) initDB() {
-	db, err := gorm.Open(sqlite.Open(context.DatabaseName), &gorm.Config{})
-
-	if err != nil {
-		panic("Failed to connect to the database")
+// OpenStore opens (or creates) the SQLite database at path and migrates the
+// schema. It uses a pure-Go SQLite driver so the server builds without cgo.
+func OpenStore(path string) (*Store, error) {
+	dsn := path
+	if path != ":memory:" {
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		// WAL lets reads run during writes; busy_timeout waits for locks
+		// instead of failing straight away.
+		dsn = path + sep + "_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
 	}
 
-	// Migrate the schema
-	db.AutoMigrate(&Metric{})
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+		// Store timestamps in UTC so they compare consistently even if the
+		// host's timezone changes (e.g. a database moved into a container).
+		NowFunc: func() time.Time { return time.Now().UTC() },
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
 
-	context.Database = db
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	// SQLite allows one writer at a time. A single connection avoids
+	// "database is locked" errors and keeps an in-memory database shared.
+	sqlDB.SetMaxOpenConns(1)
+
+	if err := db.AutoMigrate(&Metric{}); err != nil {
+		return nil, fmt.Errorf("migrate database: %w", err)
+	}
+	return &Store{db: db}, nil
 }
 
-func (context *DatabaseContext) createNewMetric(metric Metric) Metric {
-	// Create the metric in the database
-	context.Database.Create(&metric)
-
-	return metric
+// Close closes the database.
+func (s *Store) Close() error {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }
 
-func (context *DatabaseContext) getAllMetrics() []Metric {
+// Ping checks that the database is reachable.
+func (s *Store) Ping(ctx context.Context) error {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
+}
+
+// CreateMetric stores a report. It returns ErrSeriesLimit if the report
+// belongs to a new series and maxSeries series already exist.
+func (s *Store) CreateMetric(ctx context.Context, m *Metric, maxSeries int) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing int64
+		if err := tx.Model(&Metric{}).
+			Where("source = ? AND label = ?", m.Source, m.Label).
+			Limit(1).Count(&existing).Error; err != nil {
+			return err
+		}
+		if existing == 0 {
+			// GORM drops DISTINCT from Count, so count groups explicitly.
+			var series int64
+			if err := tx.Raw(`SELECT COUNT(*) FROM (
+				SELECT 1 FROM metrics WHERE deleted_at IS NULL GROUP BY source, label
+			)`).Scan(&series).Error; err != nil {
+				return err
+			}
+			if series >= int64(maxSeries) {
+				return ErrSeriesLimit
+			}
+		}
+		return tx.Create(m).Error
+	})
+}
+
+// ListMetrics returns up to limit reports, newest first.
+func (s *Store) ListMetrics(ctx context.Context, limit int) ([]Metric, error) {
 	var metrics []Metric
-	context.Database.Find(&metrics)
-	return metrics
+	err := s.db.WithContext(ctx).Order("id DESC").Limit(limit).Find(&metrics).Error
+	return metrics, err
 }
 
-func (context *DatabaseContext) getMetricsSummary() MetricSummaryResponse {
-	var result []MetricSummary
+// LatestPerSeries returns the most recent report for each (source, check)
+// pair, up to limit pairs.
+func (s *Store) LatestPerSeries(ctx context.Context, limit int) ([]SeriesStatus, error) {
+	var rows []SeriesStatus
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT m.source, m.label, m.value, m.created_at AS reported_at
+		FROM metrics m
+		JOIN (
+			SELECT MAX(id) AS id FROM metrics
+			WHERE deleted_at IS NULL
+			GROUP BY source, label
+		) latest ON latest.id = m.id
+		ORDER BY m.source, m.label
+		LIMIT ?`, limit).Scan(&rows).Error
+	return rows, err
+}
 
-	context.Database.Table("metrics").
-		Select("Label, Value, count(*) as count").
-		Group("Label, Value").
-		Scan(&result)
+// Summary counts reports for each (label, value) pair.
+func (s *Store) Summary(ctx context.Context) ([]MetricSummary, error) {
+	result := []MetricSummary{}
+	err := s.db.WithContext(ctx).Model(&Metric{}).
+		Select("label, value, count(*) AS count").
+		Group("label, value").
+		Order("label, value").
+		Scan(&result).Error
+	return result, err
+}
 
-	return MetricSummaryResponse{Data: result}
+// PurgeOlderThan permanently deletes reports created before cutoff.
+//
+// Timestamps are stored as text, and older rows (written by the previous
+// cgo driver) use a different layout and local timezone offsets. Comparing
+// with julianday() parses both layouts and their offsets, so the comparison
+// is by actual time rather than by string.
+func (s *Store) PurgeOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+	res := s.db.WithContext(ctx).Unscoped().
+		Where("julianday(created_at) < julianday(?)", cutoff.UTC().Format(time.RFC3339Nano)).
+		Delete(&Metric{})
+	return res.RowsAffected, res.Error
 }

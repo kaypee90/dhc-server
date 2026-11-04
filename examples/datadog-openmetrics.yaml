@@ -1,0 +1,17 @@
+# Datadog Agent OpenMetrics check: conf.d/openmetrics.d/conf.yaml
+# Scrapes dhc-server's /metrics endpoint directly (no Collector needed).
+# Alternatively, enable OTLP intake on the Agent and set
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://datadog-agent:4318
+#   OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+# on dhc-server.
+instances:
+  - openmetrics_endpoint: http://dhc-server:8080/metrics
+    # Rename so names match the OpenTelemetry ones, e.g.
+    # dhc.health_check.status (namespace + mapped name).
+    namespace: dhc
+    metrics:
+      - dhc_health_check_status: health_check.status
+      - dhc_health_check_last_report_time_seconds: health_check.last_report_time
+      - dhc_health_check_reports: health_check.reports
+    headers:
+      Authorization: "Bearer <DHC_READ_API_KEY>"

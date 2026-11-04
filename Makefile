@@ -1,30 +1,33 @@
 GOCMD=go
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
-GORUN=$(GOCMD) run
 BINARY_NAME=dhc-server
 BINARY_UNIX=$(BINARY_NAME)_unix
+VERSION ?= dev
+LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
 
+.PHONY: run build test lint vuln clean build-run all deps build-linux docker
+
+# Local run with authentication disabled. Never do this in production.
 run:
-	$(GORUN) $$(ls -1 *.go | grep -v _test.go)
-build: 
-	$(GOBUILD) -o $(BINARY_NAME) -v
-test: 
-	$(GOTEST) -v ./...
-clean: 
-	$(GOCLEAN)
-	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_UNIX)
-build-run:
-	$(GOBUILD) -o $(BINARY_NAME) -v ./...
+	DHC_AUTH_DISABLED=true $(GOCMD) run .
+build:
+	CGO_ENABLED=0 $(GOCMD) build -trimpath $(LDFLAGS) -o $(BINARY_NAME) .
+test:
+	$(GOCMD) test -race -v ./...
+lint:
+	$(GOCMD) vet ./...
+vuln:
+	$(GOCMD) run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+clean:
+	$(GOCMD) clean
+	rm -f $(BINARY_NAME) $(BINARY_UNIX)
+build-run: build
 	./$(BINARY_NAME)
-all: test build run
+all: lint test build
 deps:
-	$(GOGET) github.com/gin-gonic/gin
-	$(GOGET) github.com/stretchr/testify/assert
+	$(GOCMD) mod download
 
-# Cross compilation
+# Cross compilation. Works without cgo because the SQLite driver is pure Go.
 build-linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BINARY_UNIX) -v
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOCMD) build -trimpath $(LDFLAGS) -o $(BINARY_UNIX) .
+docker:
+	docker build --build-arg VERSION=$(VERSION) -t $(BINARY_NAME):$(VERSION) .

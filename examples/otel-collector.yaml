@@ -1,0 +1,52 @@
+# OpenTelemetry Collector config: receive OTLP pushed by dhc-server and
+# forward it to Prometheus, Grafana Cloud and/or Datadog.
+#
+# Run dhc-server with:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+#
+# Only the Prometheus exporter is enabled below. To also send to Grafana
+# Cloud or Datadog, set the env vars they use and add them to the pipeline's
+# exporters list. The Datadog exporter is in the "contrib" Collector
+# distribution (otel/opentelemetry-collector-contrib).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  # Alternative to OTLP push: scrape dhc-server's /metrics endpoint.
+  # prometheus:
+  #   config:
+  #     scrape_configs:
+  #       - job_name: dhc-server
+  #         static_configs: [{ targets: ["dhc-server:8080"] }]
+  #         authorization: { type: Bearer, credentials: "${env:DHC_READ_API_KEY}" }
+
+processors:
+  batch: {}
+
+exporters:
+  # Expose to Prometheus (scrape the Collector on :8889).
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+  # Grafana Cloud OTLP gateway (needs GRAFANA_OTLP_ENDPOINT, GRAFANA_OTLP_AUTH).
+  otlphttp/grafana:
+    endpoint: ${env:GRAFANA_OTLP_ENDPOINT}
+    headers:
+      Authorization: "Basic ${env:GRAFANA_OTLP_AUTH}"
+
+  # Datadog (needs DD_API_KEY, DD_SITE such as datadoghq.com).
+  datadog:
+    api:
+      key: ${env:DD_API_KEY}
+      site: ${env:DD_SITE}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus] # add otlphttp/grafana and/or datadog
